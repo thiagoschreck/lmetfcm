@@ -78,10 +78,12 @@ function Remove-ContextMenuItem {
 }
 
 function Rename-ContextMenuItem {
-  # TODO Check if original key exists
   $KeyToRename = Read-Host -Prompt 'Insert the name of the key to rename'
   if (Confirm-StringIsNullOrEmpty -String $KeyToRename) {
     Exit-WithErrorMessage -Message "Key name was not specified"
+  }
+  if (-Not(Test-Path $KeyToRename)) {
+    Exit-WithErrorMessage -Message "Key name does not exist"
   }
   $NewKeyName = Read-Host -Prompt 'Insert the new name for the key'
   if (Confirm-StringIsNullOrEmpty -String $NewKeyName) {
