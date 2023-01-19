@@ -70,6 +70,9 @@ function Remove-ContextMenuItem {
   if (Confirm-StringIsNullOrEmpty -String $KeyToRemove) {
     Exit-WithErrorMessage -Message "Key name was not specified"
   }
+  if (-Not(Test-Path $KeyToRemove)) {
+    Exit-WithErrorMessage -Message "Key name does not exist"
+  }
   Remove-Item -Path ($ContextMenuBasePath + "\" + $KeyToRemove)
   Write-ResultMessage -Result "SUCCESS" -Message ("Successfully removed key $KeyToRemove")
 }
