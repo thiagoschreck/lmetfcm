@@ -19,108 +19,98 @@ function Write-ResultMessage {
   )
   $ForegroundColor = "White"
   switch ($Result) {
-    "SUCCESS" { 
-      $ForegroundColor = "Green"
-    }
-    "ERROR" {
-      $ForeGroundColor = "Red"
-    }
-    "WARNING" {
-      $ForeGroundColor = "Yellow"
-    }
-    Default {
-      $ForeGroundColor = "Red"
-      Write-Host ("[ERROR] Value $Result is not a valid result")
-    }
+    "SUCCESS" { $ForegroundColor = "Green" }
+    "ERROR" { $ForeGroundColor = "Red" }
+    "WARNING" { $ForeGroundColor = "Yellow" }
+    Default { $ForeGroundColor = "Red" }
   }
-
   Write-Host ("[$Result] $Message") -ForegroundColor $ForegroundColor
 }
 
-Clear-Host
-Write-Host $Banner
-if (Test-Path -Path $ContextMenuBasePath) {
-  Set-Location -Path $ContextMenuBasePath
-}
-else {
-  Write-ResultMessage -Result "WARNING" -Message ("Directory does not exist, creating $ContextMenuBasePath")
-  New-Item -Path $ContextMenuBasePath -ItemType Directory
-}
-Write-Host "Current context menus:"
-Get-ChildItem
-
-function Add-ContextMenuItemProperty {
+function Exit-WithErrorMessage {
   param (
-    $KeyPath
+    $Message
   )
+  Write-ResultMessage -Result "ERROR" -Message $Message
+  Set-Location -Path $PsScriptRoot
+  Exit
+}
+
+function Confirm-StringIsNullOrEmpty {
+  param (
+    $String
+  )
+  return $null -eq $String -Or ("" -eq $String)
+}
+
+function Add-ContextMenuItem {
+  $KeyToAdd = Read-Host -Prompt 'Insert the name of the key to add'
+  $KeyPath = ("$ContextMenuBasePath\$KeyToAdd")
+  if (Test-Path $KeyPath) {
+    Exit-WithErrorMessage -Message ("Key name `"$KeyToAdd`" already exists")
+  }
   $MenuName = Read-Host -Prompt 'Insert the context menu name'
+  if (Confirm-StringIsNullOrEmpty -String $MenuName) { 
+    Exit-WithErrorMessage -Message "Menu name was not specified" 
+  }
   $ProgramPath = Read-Host -Prompt 'Insert the path of the program'
+  if (Confirm-StringIsNullOrEmpty -String $ProgramPath) { 
+    Exit-WithErrorMessage -Message "Program path was not specified" 
+  }
+  New-Item -Path $ContextMenuBasePath -Name $KeyToAdd | Out-Null
   New-ItemProperty -Path $KeyPath -Name "(Default)" -Value $MenuName -PropertyType "String" | Out-Null
   New-ItemProperty -Path $KeyPath -Name "Icon" -Value $ProgramPath -PropertyType "String" | Out-Null
   New-Item -Path ("$KeyPath") -Name "command" | Out-Null
   New-ItemProperty -Path ("$KeyPath\command") -Name "(Default)" -Value ("`"$ProgramPath`" `"%V`"") -PropertyType "String" | Out-Null
-}
-
-function Add-ContextMenuItem {
-  # TODO check if key exists beforehand
-  $KeyToAdd = Read-Host -Prompt 'Insert the name of the key to add'
-  if (Test-Path ("$ContextMenuBasePath\$KeyToAdd")) {
-    Write-ResultMessage -Result "ERROR" -Message ("Key name `"$KeyToAdd`" already exists")
-    Set-Location -Path $PsScriptRoot
-    Exit
-  }
-  New-Item -Path $ContextMenuBasePath -Name $KeyToAdd | Out-Null
-  Add-ContextMenuItemProperty -KeyPath ("$ContextMenuBasePath\$KeyToAdd")
   Write-ResultMessage -Result "SUCCESS" -Message ("Successfully added key $KeyToAdd")
 }
 
 function Remove-ContextMenuItem {
   $KeyToRemove = Read-Host -Prompt 'Insert the name of the key to remove'
-  if ( $null -ne $KeyToRemove -and $KeyToRemove -ne "") {
-    Remove-Item -Path ($ContextMenuBasePath + "\" + $KeyToRemove)
-    Write-ResultMessage -Result "SUCCESS" -Message ("Successfully removed key $KeyToRemove")
+  if (Confirm-StringIsNullOrEmpty -String $KeyToRemove) {
+    Exit-WithErrorMessage -Message "Key name was not specified"
   }
-  else {
-    Write-ResultMessage -Result "ERROR" -Message "Key name was not specified"
-    Set-Location -Path $PsScriptRoot
-    Exit
-  }
+  Remove-Item -Path ($ContextMenuBasePath + "\" + $KeyToRemove)
+  Write-ResultMessage -Result "SUCCESS" -Message ("Successfully removed key $KeyToRemove")
 }
 
 function Rename-ContextMenuItem {
   # TODO Check if original key exists
   $KeyToRename = Read-Host -Prompt 'Insert the name of the key to rename'
-  if ( $null -ne $KeyToRename -and $KeyToRename -ne "") {
-    $NewKeyName = Read-Host -Prompt 'Insert the new name for the key'
-    if ( $null -ne $NewKeyName -and $NewKeyName -ne "") {
-      Rename-Item -Path ($ContextMenuBasePath + "\" + $KeyToRename) $NewKeyName
-      Write-ResultMessage -Result "SUCCESS" -Message ("Successfully renamed key from $KeyToRename to $NewKeyName")
-    }
-    else {
-      Write-ResultMessage -Result "ERROR" -Message "New name was not specified"
-      Set-Location -Path $PsScriptRoot
-      Exit
-    }
+  if (Confirm-StringIsNullOrEmpty -String $KeyToRename) {
+    Exit-WithErrorMessage -Message "Key name was not specified"
+  }
+  $NewKeyName = Read-Host -Prompt 'Insert the new name for the key'
+  if (Confirm-StringIsNullOrEmpty -String $NewKeyName) {
+    Exit-WithErrorMessage -Message "New name was not specified" 
+  }
+  Rename-Item -Path ($ContextMenuBasePath + "\" + $KeyToRename) $NewKeyName
+  Write-ResultMessage -Result "SUCCESS" -Message ("Successfully renamed key from $KeyToRename to $NewKeyName")
+}
+
+function Init {
+  Clear-Host
+  Write-Host $Banner
+  if (Test-Path -Path $ContextMenuBasePath) {
+    Set-Location -Path $ContextMenuBasePath
   }
   else {
-    Write-ResultMessage -Result "ERROR" -Message "Key name was not specified"
-    Set-Location -Path $PsScriptRoot
-    Exit   
+    Write-ResultMessage -Result "WARNING" -Message ("Directory does not exist, creating $ContextMenuBasePath")
+    New-Item -Path $ContextMenuBasePath -ItemType Directory
+  }
+  Write-Host "Current context menus:"
+  Get-ChildItem
+
+  switch ($Option) {
+    "get" { } # TODO
+    "add" { Add-ContextMenuItem }
+    "remove" { Remove-ContextMenuItem }
+    "rename" { Rename-ContextMenuItem }
+    Default { Exit-WithErrorMessage -Message "Invalid argument(s)." }
   }
 }
 
-switch ($Option) {
-  "get" { 
-    # TODO
-  }
-  "add" { Add-ContextMenuItem }
-  "remove" { Remove-ContextMenuItem }
-  "rename" { Rename-ContextMenuItem }
-  Default {
-    Write-ResultMessage -Result "ERROR" -Message "Invalid argument(s)."
-    Exit
-  }
-}
+Init
 
 # Return to original path
 Set-Location -Path $PsScriptRoot
