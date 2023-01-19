@@ -6,37 +6,48 @@ $Banner = @"
 |____| |_|  |_| |___|   |_|     \/_/   \___| |_|  |_|
                                                     
 Kindly allow me to edit my own system's context menu.
------------------------------------------------------
+-----------------------------------------------------`n
 "@
 
 $ContextMenuBasePath = "HKCU:\Software\Classes\directory\Background\shell"
 $Option = $Args[0]
 
-clear
-Write-Host $Banner
-Set-Location -Path $ContextMenuBasePath
-Write-Host "Current context menus:"
-Get-ChildItem
-
-function Output-ResultMessage {
+function Write-ResultMessage {
   param (
     $Result,
     $Message
   )
   $ForegroundColor = "White"
-  if($Result -eq "SUCCESS") {
-    $ForegroundColor = "Green"
-  } 
-  elseif($Result -eq "ERROR") {
-    $ForeGroundColor = "Red"
-  }
-  else {
-    $ForeGroundColor = "Red"
-    Write-Host ("[ERROR] Value $Result is not a valid result")
+  switch ($Result) {
+    "SUCCESS" { 
+      $ForegroundColor = "Green"
+    }
+    "ERROR" {
+      $ForeGroundColor = "Red"
+    }
+    "WARNING" {
+      $ForeGroundColor = "Yellow"
+    }
+    Default {
+      $ForeGroundColor = "Red"
+      Write-Host ("[ERROR] Value $Result is not a valid result")
+    }
   }
 
   Write-Host ("[$Result] $Message") -ForegroundColor $ForegroundColor
 }
+
+Clear-Host
+Write-Host $Banner
+if (Test-Path -Path $ContextMenuBasePath) {
+  Set-Location -Path $ContextMenuBasePath
+}
+else {
+  Write-ResultMessage -Result "WARNING" -Message ("Directory does not exist, creating $ContextMenuBasePath")
+  New-Item -Path $ContextMenuBasePath -ItemType Directory
+}
+Write-Host "Current context menus:"
+Get-ChildItem
 
 function Add-ContextMenuItemProperty {
   param (
@@ -53,53 +64,62 @@ function Add-ContextMenuItemProperty {
 function Add-ContextMenuItem {
   # TODO check if key exists beforehand
   $KeyToAdd = Read-Host -Prompt 'Insert the name of the key to add'
+  if (Test-Path ("$ContextMenuBasePath\$KeyToAdd")) {
+    Write-ResultMessage -Result "ERROR" -Message ("Key name `"$KeyToAdd`" already exists")
+    Set-Location -Path $PsScriptRoot
+    Exit
+  }
   New-Item -Path $ContextMenuBasePath -Name $KeyToAdd | Out-Null
   Add-ContextMenuItemProperty -KeyPath ("$ContextMenuBasePath\$KeyToAdd")
-  Output-ResultMessage -Result "SUCCESS" -Message ("Successfully added key $KeyToAdd")
+  Write-ResultMessage -Result "SUCCESS" -Message ("Successfully added key $KeyToAdd")
 }
 
 function Remove-ContextMenuItem {
   $KeyToRemove = Read-Host -Prompt 'Insert the name of the key to remove'
-  if ( $KeyToRemove -ne $null -and $KeyToRemove -ne "") {
+  if ( $null -ne $KeyToRemove -and $KeyToRemove -ne "") {
     Remove-Item -Path ($ContextMenuBasePath + "\" + $KeyToRemove)
-    Output-ResultMessage -Result "SUCCESS" -Message ("Successfully removed key $KeyToRemove")
+    Write-ResultMessage -Result "SUCCESS" -Message ("Successfully removed key $KeyToRemove")
   }
   else {
-    Output-ResultMessage -Result "ERROR" -Message "Key name was not specified"
+    Write-ResultMessage -Result "ERROR" -Message "Key name was not specified"
+    Set-Location -Path $PsScriptRoot
+    Exit
   }
 }
 
 function Rename-ContextMenuItem {
   # TODO Check if original key exists
   $KeyToRename = Read-Host -Prompt 'Insert the name of the key to rename'
-  if ( $KeyToRename -ne $null -and $KeyToRename -ne "") {
+  if ( $null -ne $KeyToRename -and $KeyToRename -ne "") {
     $NewKeyName = Read-Host -Prompt 'Insert the new name for the key'
-    if ( $NewKeyName -ne $null -and $NewKeyName -ne "") {
+    if ( $null -ne $NewKeyName -and $NewKeyName -ne "") {
       Rename-Item -Path ($ContextMenuBasePath + "\" + $KeyToRename) $NewKeyName
-      Output-ResultMessage -Result "SUCCESS" -Message ("Successfully renamed key from $KeyToRename to $NewKeyName")
+      Write-ResultMessage -Result "SUCCESS" -Message ("Successfully renamed key from $KeyToRename to $NewKeyName")
     }
     else {
-      Output-ResultMessage -Result "ERROR" -Message "New name was not specified"
+      Write-ResultMessage -Result "ERROR" -Message "New name was not specified"
+      Set-Location -Path $PsScriptRoot
+      Exit
     }
   }
   else {
-    Output-ResultMessage -Result "ERROR" -Message "Key name was not specified"
+    Write-ResultMessage -Result "ERROR" -Message "Key name was not specified"
+    Set-Location -Path $PsScriptRoot
+    Exit   
   }
 }
 
-if ( $Option -eq "get" ) {
-}
-elseif ( $Option -eq "add" ) {
-  Add-ContextMenuItem
-}
-elseif ( $Option -eq "remove" ) {
-  Remove-ContextMenuItem
-}
-elseif ( $Option -eq "rename" ) {
-  Rename-ContextMenuItem
-}
-else {
-  Write-Host "else"
+switch ($Option) {
+  "get" { 
+    # TODO
+  }
+  "add" { Add-ContextMenuItem }
+  "remove" { Remove-ContextMenuItem }
+  "rename" { Rename-ContextMenuItem }
+  Default {
+    Write-ResultMessage -Result "ERROR" -Message "Invalid argument(s)."
+    Exit
+  }
 }
 
 # Return to original path
